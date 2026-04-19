@@ -146,15 +146,19 @@ def ensure_sandbox_initialized(runtime: ToolRuntime[ContextT, ThreadState] | Non
                 return sandbox
             # 沙箱已释放，继续获取新的
 
-    # 延迟获取：获取 thread_id 并获取沙箱
+    # 延迟获取：获取 thread_id 和 user_id 并获取沙箱
     thread_id = runtime.context.get("thread_id") if runtime.context else None
     if thread_id is None:
         thread_id = runtime.config.get("configurable", {}).get("thread_id") if runtime.config else None
     if thread_id is None:
         raise SandboxRuntimeError("Thread ID not available in runtime context")
 
+    user_id = runtime.context.get("user_id") if runtime.context else None
+    if user_id is None:
+        user_id = runtime.config.get("configurable", {}).get("user_id") if runtime.config else None
+
     provider = get_sandbox_provider()
-    sandbox_id = provider.acquire(thread_id)
+    sandbox_id = provider.acquire(thread_id, user_id)
 
     # 更新运行时状态 - 这在工具调用之间持久存在
     runtime.state["sandbox"] = {"sandbox_id": sandbox_id}

@@ -138,16 +138,18 @@ class SkillsMiddleware(AgentMiddleware[SkillsState]):
 
 """
 
-    def __init__(self, skills_dir: str = "skills", sources: list[str] | None = None):
+    def __init__(self, skills_dir: str = "skills", user_id: str | None = None, sources: list[str] | None = None):
         """初始化技能中间件。
 
         Args:
-            skills_dir: 技能根目录，默认为 "skills" ，作为沙箱不可用时的回退方案
+            skills_dir: 技能根目录（用于本地回退）
+            user_id: 用户ID，用于用户隔离的技能目录
             sources: 要加载的技能子目录列表，默认为全部
         """
         super().__init__()
         self._skills_dir = Path(skills_dir)
         self._sources = sources
+        self._user_id = user_id
         self._skills_cache: list[SkillMetadata] | None = None
 
     def _load_skills(self, runtime: Runtime[ContextT] | None = None) -> list[SkillMetadata]:
@@ -169,7 +171,7 @@ class SkillsMiddleware(AgentMiddleware[SkillsState]):
         if sandbox is not None:
             skills = self._load_skills_from_sandbox(sandbox)
         else:
-            # 回退到本地文件系统
+            # 回退到本地文件系统（使用用户目录）
             skills = self._load_skills_from_filesystem()
 
         self._skills_cache = skills
@@ -267,12 +269,23 @@ class SkillsMiddleware(AgentMiddleware[SkillsState]):
         """
         skills: list[SkillMetadata] = []
 
+        # 确定要扫描的基础目录（包含用户ID）
+        if self._user_id:
+            base_dir = self._skills_dir / self._user_id
+        else:
+            base_dir = self._skills_dir / "global"
+
+        # 如果目录不存在，返回空列表
+        if not base_dir.exists():
+            logger.warning("本地技能目录不存在：%s", base_dir)
+            return []
+
         # 确定要扫描的目录
         if self._sources:
-            scan_dirs = [self._skills_dir / source for source in self._sources]
+            scan_dirs = [base_dir / source for source in self._sources]
         else:
             # 扫描所有子目录
-            scan_dirs = [d for d in self._skills_dir.iterdir() if d.is_dir()]
+            scan_dirs = [d for d in base_dir.iterdir() if d.is_dir()]
 
         # 扫描每个技能目录
         for skill_dir in scan_dirs:

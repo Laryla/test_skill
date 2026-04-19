@@ -35,6 +35,7 @@ from agents.sandbox.tools import (
 
 TOOLS = [bash_tool, ls_tool, glob_tool, grep_tool, read_file_tool, write_file_tool, str_replace_tool]
 
+agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware()])
 
 async def main():
     """主函数。"""
@@ -56,7 +57,7 @@ async def main():
 
     try:
         print("🚀 测试开始...")
-        agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware()])
+        agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware(user_id="example-user")])
         from langchain_core.runnables import RunnableConfig
         config_with_plan_mode = RunnableConfig(
             configurable={
@@ -65,14 +66,55 @@ async def main():
             }
         )
 
-        # 方式1：传递消息和配置
-        result = agent.invoke(
-            {"messages": [HumanMessage(content="你好，你是谁？")]},
-            config=config_with_plan_mode
-        )
-        # 打印所有消息，包括中间步骤
-        for msg in result["messages"]:
-            print(f"\n[{msg.type}]: {msg.content}")
+        # 方式1：传递消息和配置 - 使用流式返回
+        print("\n📡 开始流式输出...\n")
+
+        for chunk in agent.stream(
+            {"messages": [HumanMessage(content="你好，使用save-as-txt 帮我保存为txt：用户隔离：每个用户只能看到自己的技能目录呜呜呜呜")]},
+            config=config_with_plan_mode,
+            stream_mode="updates",
+            version='v2'
+        ):
+            # 处理消息输出
+            if chunk.get("type") == "updates":
+                for step, data in chunk.get("data", {}).items():
+                    # 跳过 None 值
+                    if data is None:
+                        continue
+
+                    print(f"\n🔹 节点: {step}")
+                    print("=" * 50)
+
+                    # data 可能包含多种类型的输出
+                    for key, value in data.items():
+                        if key == "messages":
+                            # 处理消息列表
+                            for msg in value:
+                                print(f"\n  [{msg.type}]")
+                                if hasattr(msg, 'content'):
+                                    if isinstance(msg.content, list):
+                                        # 处理内容块（如工具调用）
+                                        for block in msg.content:
+                                            if hasattr(block, 'text'):
+                                                print(f"    📝 {block.text}")
+                                            elif hasattr(block, 'tool_calls'):
+                                                for call in block.tool_calls:
+                                                    print(f"    🔧 工具调用: {call.get('name', 'unknown')}")
+                                                    print(f"       参数: {call.get('args', {{}})}")
+                                    else:
+                                        print(f"    📝 {msg.content}")
+                                if hasattr(msg, 'name') and msg.name:
+                                    print(f"    工具名: {msg.name}")
+                        elif key == "thread_data":
+                            # 处理线程数据（工作空间路径等）
+                            print(f"  📁 工作空间信息:")
+                            for k, v in value.items():
+                                print(f"    {k}: {v}")
+                        else:
+                            # 其他数据
+                            print(f"  {key}: {value}")
+
+                    print("=" * 50)
 
 
     except KeyboardInterrupt:

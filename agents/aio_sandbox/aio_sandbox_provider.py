@@ -292,18 +292,22 @@ class AioSandboxProvider(_SandboxProviderBase):
     def _get_skills_mount(user_id: str | None) -> tuple[str, str, bool] | None:
         """获取技能目录挂载配置。
 
-        直接写死宿主机技能根目录，并区分全局和用户目录。
+        根据用户 ID 映射对应的技能目录：
+        - 有 user_id：映射 skills/<user_id> 到容器
+        - 无 user_id：映射 skills/global 到容器
         """
-
         # 获取项目根目录
-        host_skills = os.path.join(os.getcwd(), "skills")
+        skills_root = os.path.join(os.getcwd(), "skills")
         container_path = "/mnt/skills"
-        global_skills_dir = os.path.join(host_skills, "global")
 
-        os.makedirs(global_skills_dir, exist_ok=True)
+        # 确定要挂载的宿主机目录
         if user_id:
-            user_skills_dir = os.path.join(host_skills, user_id)
-            os.makedirs(user_skills_dir, exist_ok=True)
+            host_skills = os.path.join(skills_root, user_id)
+        else:
+            host_skills = os.path.join(skills_root, "global")
+
+        # 创建目录（如果不存在）
+        os.makedirs(host_skills, exist_ok=True)
 
         return (host_skills, container_path, True)  # 出于安全原因为只读
 

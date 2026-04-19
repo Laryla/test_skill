@@ -95,7 +95,7 @@ class Paths:
         return self.base_dir
 
     def _host_base_dir_str(self) -> str:
-        """Return the host base dir as a raw string for bind mounts."""
+        """返回主机基础目录的原始字符串，用于绑定挂载。"""
         if env := os.getenv("DEER_FLOW_HOST_BASE_DIR"):
             return env
         return str(self.base_dir)
