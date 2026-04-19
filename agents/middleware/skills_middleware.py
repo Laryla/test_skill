@@ -425,14 +425,91 @@ class SkillsMiddleware(AgentMiddleware[SkillsState]):
         # 处理 content 可能是列表的情况
         existing_content = system_message.content
         if isinstance(existing_content, list):
-            # 如果是列表，转换为字符串
-            existing_text = str(existing_content)
-        elif isinstance(existing_content, str):
-            existing_text = existing_content
-        else:
-            existing_text = ""
+            # 如果是列表，保持列表格式并追加到文本块
+            new_content = []
+            text_appended = False
+            for block in existing_content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    # 追加到现有文本块
+                    new_content.append({
+                        "type": "text",
+                        "text": block.get("text", "") + content
+                    })
+                    text_appended = True
+                else:
+                    # 保留其他类型的块（如图片）
+                    new_content.append(block)
 
-        return SystemMessage(content=existing_text + content)
+            # 如果没有文本块，添加一个新的
+            if not text_appended:
+                new_content.append({"type": "text", "text": content})
+
+            return SystemMessage(content=new_content)
+        elif isinstance(existing_content, str):
+            return SystemMessage(content=existing_content + content)
+        else:
+            return SystemMessage(content=content)
+
+    def _is_valid_content_block(self, block: dict) -> bool:
+        """验证 content 块是否有效且符合 OpenAI API 格式。
+
+        OpenAI API 支持的格式：
+        - {"type": "text", "text": "..."}
+        - {"type": "image_url", "image_url": {...}}
+        """
+        if not isinstance(block, dict):
+            return False
+
+        block_type = block.get("type")
+        if not block_type or not isinstance(block_type, str):
+            return False
+
+        if block_type == "text":
+            # text 类型必须有 text 字段
+            return "text" in block
+        elif block_type == "image_url":
+            # image_url 类型必须有 image_url 字段
+            return "image_url" in block
+        else:
+            # 不支持的类型
+            return False
+
+    def _sanitize_message_content(self, content):
+        """清理消息内容，移除不支持的content类型（如reasoning、thinking）。
+
+        OpenAI API只支持text和image_url类型，需要过滤其他类型。
+        """
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            sanitized = []
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type")
+
+                    # 将reasoning转换为text（GLM-5 使用 reasoning）
+                    if block_type == "reasoning":
+                        reasoning_text = block.get("reasoning", "")
+                        if reasoning_text:
+                            sanitized.append({"type": "text", "text": f"[思考] {reasoning_text}"})
+
+                    # thinking 类型的块直接跳过，不添加到 content 中
+                    elif block_type == "thinking":
+                        continue
+
+                    # 只保留有效且支持的类型
+                    elif self._is_valid_content_block(block):
+                        sanitized.append(block)
+
+                    # 其他类型（无效块）被丢弃
+                else:
+                    # 保留非字典类型的块
+                    sanitized.append({"type":"text","text":block})
+
+            # 如果过滤后没有有效块，返回空字符串
+            return sanitized if sanitized else ""
+
+        return content
 
     def wrap_model_call(
         self,
@@ -457,8 +534,30 @@ class SkillsMiddleware(AgentMiddleware[SkillsState]):
             skills_section
         )
 
+        # 清理所有消息的content，移除不支持的类型
+        sanitized_messages = []
+        for msg in request.messages:
+            if hasattr(msg, 'content'):
+                sanitized_content = self._sanitize_message_content(msg.content)
+                # 如果content没有变化，直接使用原消息
+                if sanitized_content == msg.content:
+                    sanitized_messages.append(msg)
+                else:
+                    # 使用model_copy方法创建新消息，保留所有原始属性
+                    try:
+                        new_msg = msg.model_copy(update={"content": sanitized_content})
+                        sanitized_messages.append(new_msg)
+                    except Exception:
+                        # 如果copy失败，直接使用原消息
+                        sanitized_messages.append(msg)
+            else:
+                sanitized_messages.append(msg)
+
         # 创建修改后的请求
-        modified_request = request.override(system_message=new_system_message)
+        modified_request = request.override(
+            system_message=new_system_message,
+            messages=sanitized_messages
+        )
 
         # 调用处理器
         return handler(modified_request)
@@ -486,8 +585,30 @@ class SkillsMiddleware(AgentMiddleware[SkillsState]):
             skills_section
         )
 
+        # 清理所有消息的content，移除不支持的类型
+        sanitized_messages = []
+        for msg in request.messages:
+            if hasattr(msg, 'content'):
+                sanitized_content = self._sanitize_message_content(msg.content)
+                # 如果content没有变化，直接使用原消息
+                if sanitized_content == msg.content:
+                    sanitized_messages.append(msg)
+                else:
+                    # 使用model_copy方法创建新消息，保留所有原始属性
+                    try:
+                        new_msg = msg.model_copy(update={"content": sanitized_content})
+                        sanitized_messages.append(new_msg)
+                    except Exception:
+                        # 如果copy失败，直接使用原消息
+                        sanitized_messages.append(msg)
+            else:
+                sanitized_messages.append(msg)
+
         # 创建修改后的请求
-        modified_request = request.override(system_message=new_system_message)
+        modified_request = request.override(
+            system_message=new_system_message,
+            messages=sanitized_messages
+        )
 
         # 调用处理器
         return await handler(modified_request)

@@ -9,16 +9,16 @@ from langchain_core.messages import HumanMessage
 # 导入模型
 from langchain.chat_models import init_chat_model
 from litellm import Thread
-
+from langchain_litellm import ChatLiteLLM
 from agents.middleware.skills_middleware import SkillsMiddleware
 from agents.sandbox.middleware import SandboxMiddleware
 # from deepagents.middleware.skills import SkillsMiddleware
 # 初始化模型
-model = init_chat_model(
-    model="glm-5",
-    model_provider="openai",
+model = ChatLiteLLM(
+    model="openai/glm-5",
     api_key="dacc5506fc9a5469d9cf80309b1ef300.FFswKpmbcQUQmgO5",
-    base_url="https://open.bigmodel.cn/api/paas/v4/",
+    api_base="https://open.bigmodel.cn/api/paas/v4/",
+    streaming=True
 )
 
 # 导入 tools
@@ -69,14 +69,52 @@ async def main():
         # 方式1：传递消息和配置 - 使用流式返回
         print("\n📡 开始流式输出...\n")
 
+        # 用于追踪当前工具调用的状态
+        current_tool_calls = {}
+
         for chunk in agent.stream(
-            {"messages": [HumanMessage(content="你好，使用save-as-txt 帮我保存为txt：用户隔离：每个用户只能看到自己的技能目录呜呜呜呜")]},
+            {"messages": [HumanMessage(content="你好，帮我使用 skill-creator 创建一个讲内容变成txt的skill 严格按照skill-creator规范 讲skill保存在mnt/skills目录下，你直接帮我自动完成就行")]},
             config=config_with_plan_mode,
-            stream_mode="updates",
+            stream_mode=["updates", "messages"],
             version='v2'
         ):
-            # 处理消息输出
-            if chunk.get("type") == "updates":
+            chunk_type = chunk.get("type")
+
+            # 处理 token 消息流（实时显示生成的文本和工具调用增量）
+            if chunk_type == "messages":
+                token, metadata = chunk["data"]
+                node_name = metadata.get("langgraph_node", "unknown")
+
+                # 1. 显示 AI 生成的文本增量
+                if hasattr(token, 'text') and token.text:
+                    print(token.text, end="", flush=True)
+
+                # 1.5. 显示思考内容增量（reasoning tokens）
+                if hasattr(token, 'content_blocks'):
+                    for block in token.content_blocks:
+                        if isinstance(block, dict) and block.get("type") == "reasoning":
+                            reasoning_text = block.get("reasoning", "")
+                            if reasoning_text:
+                                print(f"思考：{reasoning_text}", end="", flush=True)
+
+                # 2. 显示工具调用的增量信息
+                if hasattr(token, 'tool_call_chunks') and token.tool_call_chunks:
+                    for tc in token.tool_call_chunks:
+                        tool_id = tc.get("id")
+                        tool_name = tc.get("name")
+                        args = tc.get("args", "")
+
+                        # 工具调用开始（有工具名称）
+                        if tool_name and tool_id not in current_tool_calls:
+                            current_tool_calls[tool_id] = {"name": tool_name, "args": ""}
+                            print(f"\n🔧 [开始] 工具: {tool_name}")
+
+                        # 累积参数
+                        if tool_id and tool_id in current_tool_calls:
+                            current_tool_calls[tool_id]["args"] += args
+
+            # 处理状态更新（完整的工具调用信息）
+            elif chunk_type == "updates":
                 for step, data in chunk.get("data", {}).items():
                     # 跳过 None 值
                     if data is None:
@@ -91,6 +129,14 @@ async def main():
                             # 处理消息列表
                             for msg in value:
                                 print(f"\n  [{msg.type}]")
+
+                                # 3. 显示 AI 消息中的思考内容（完整版）
+                                if msg.type == "ai" and hasattr(msg, 'content'):
+                                    if isinstance(msg.content, list):
+                                        for block in msg.content:
+                                            if isinstance(block, dict) and block.get("type") == "reasoning":
+                                                print(f"\n🤔 [完整思考] {block.get('reasoning', '')}")
+
                                 if hasattr(msg, 'content'):
                                     if isinstance(msg.content, list):
                                         # 处理内容块（如工具调用）
@@ -100,11 +146,38 @@ async def main():
                                             elif hasattr(block, 'tool_calls'):
                                                 for call in block.tool_calls:
                                                     print(f"    🔧 工具调用: {call.get('name', 'unknown')}")
-                                                    print(f"       参数: {call.get('args', {{}})}")
+                                                    print(f"       参数: {call.get('args', {})}")
                                     else:
                                         print(f"    📝 {msg.content}")
                                 if hasattr(msg, 'name') and msg.name:
                                     print(f"    工具名: {msg.name}")
+
+                                # 4. 显示完整的工具调用信息（确认完成）
+                                if msg.type == "ai" and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                                    for call in msg.tool_calls:
+                                        tool_id = call.get("id")
+                                        tool_name = call.get("name")
+                                        tool_args = call.get("args", {})
+
+                                        print(f"\n✅ [完成] 工具: {tool_name}")
+                                        print(f"   📦 完整入参: {tool_args}")
+
+                                        # 清理已完成的工具调用
+                                        if tool_id in current_tool_calls:
+                                            del current_tool_calls[tool_id]
+
+                                # 5. 显示工具返回结果
+                                elif msg.type == "tool":
+                                    tool_name = msg.name
+                                    print(f"\n📤 [结果] 工具 {tool_name} 返回:")
+                                    if isinstance(msg.content, str):
+                                        print(f"   {msg.content}")
+                                    elif isinstance(msg.content, list):
+                                        for block in msg.content:
+                                            if isinstance(block, dict):
+                                                if block.get("type") == "text":
+                                                    print(f"   {block.get('text', '')}")
+
                         elif key == "thread_data":
                             # 处理线程数据（工作空间路径等）
                             print(f"  📁 工作空间信息:")
