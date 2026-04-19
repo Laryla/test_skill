@@ -1,0 +1,6 @@
+LANGSMITH_API_KEY=xxxxx
+OPENAI_API_KEY=xxxxxx
+OPENAI_BASE_URL=xxxxxx
+
+
+# DEER_FLOW_HOST_BASE_DIR=/host_mnt/Users/xuhd/worksapce/test_skill
