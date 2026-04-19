@@ -1,10 +1,16 @@
 """流式返回示例 - 展示工具调用的开始、结束和入参，以及AI文本增量。"""
 
 import asyncio
+import os
+from dotenv import load_dotenv
+
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_litellm import ChatLiteLLM
+
+# 加载环境变量
+load_dotenv()
 
 def get_weather(city: str) -> str:
     """获取指定城市的天气信息。"""
@@ -19,8 +25,8 @@ def search_database(query: str) -> str:
 # 初始化模型
 model = ChatLiteLLM(
     model="openai/glm-5",
-    api_base="https://open.bigmodel.cn/api/paas/v4/",
-    api_key="dacc5506fc9a5469d9cf80309b1ef300.FFswKpmbcQUQmgO5",
+    api_base=os.getenv("GLM_API_BASE"),
+    api_key=os.getenv("GLM_API_KEY"),
     streaming=True
 )
 

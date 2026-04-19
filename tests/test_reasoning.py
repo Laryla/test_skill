@@ -1,10 +1,15 @@
 """测试 GLM-5 思考内容 - 使用原生 OpenAI 客户端"""
 
+import os
+from dotenv import load_dotenv
 from openai import OpenAI
 
+# 加载环境变量
+load_dotenv()
+
 client = OpenAI(
-    api_key="dacc5506fc9a5469d9cf80309b1ef300.FFswKpmbcQUQmgO5",
-    base_url="https://open.bigmodel.cn/api/paas/v4/",
+    api_key=os.getenv("GLM_API_KEY"),
+    base_url=os.getenv("GLM_API_BASE"),
 )
 
 print("=== 测试 GLM-5 思考内容 ===\n")

@@ -1,8 +1,11 @@
 """快速运行测试的脚本 - 测试大模型和 Docker 沙箱工具。"""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
 
@@ -13,11 +16,15 @@ from langchain_litellm import ChatLiteLLM
 from agents.middleware.skills_middleware import SkillsMiddleware
 from agents.sandbox.middleware import SandboxMiddleware
 # from deepagents.middleware.skills import SkillsMiddleware
+
+# 加载环境变量
+load_dotenv()
+
 # 初始化模型
 model = ChatLiteLLM(
     model="openai/glm-5",
-    api_key="dacc5506fc9a5469d9cf80309b1ef300.FFswKpmbcQUQmgO5",
-    api_base="https://open.bigmodel.cn/api/paas/v4/",
+    api_key=os.getenv("GLM_API_KEY"),
+    api_base=os.getenv("GLM_API_BASE"),
     streaming=True
 )
 
