@@ -11,7 +11,7 @@ _SAFE_THREAD_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
 def _default_local_base_dir() -> Path:
     """Return the repo-local DeerFlow state directory without relying on cwd."""
-    backend_dir = Path(__file__).resolve().parents[4]
+    backend_dir = Path.cwd()
     return backend_dir / ".deer-flow"
 
 
@@ -77,7 +77,7 @@ class Paths:
     """
 
     def __init__(self, base_dir: str | Path | None = None) -> None:
-        self._base_dir = Path(base_dir).resolve() if base_dir is not None else None
+        self._base_dir = Path().resolve() if base_dir is not None else None
 
     @property
     def host_base_dir(self) -> Path:

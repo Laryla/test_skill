@@ -270,7 +270,7 @@ def apply_prompt_template(*, agent_name: str | None = None) -> str:
         agent_name=agent_name or "DeerFlow 2.0",
         soul=get_agent_soul(agent_name),
         deferred_tools_section=deferred_tools_section,
-        memory_context=memory_context,
+        # memory_context=memory_context,
     )
 
     return prompt + f"\n<current_date>{datetime.now().strftime('%Y-%m-%d, %A')}</current_date>"

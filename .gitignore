@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+outputs/
+uploads/
+test_files/
+.deer-flow/

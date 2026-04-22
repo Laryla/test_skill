@@ -14,6 +14,7 @@ from langchain.chat_models import init_chat_model
 from litellm import Thread
 from agents.middleware.memory_middleware import MemoryMiddleware
 from langchain_litellm import ChatLiteLLM
+from agents.middleware.memory_middleware import MemoryMiddleware
 from agents.middleware.skills_middleware import SkillsMiddleware
 from agents.sandbox.middleware import SandboxMiddleware
 # from deepagents.middleware.skills import SkillsMiddleware
@@ -43,7 +44,7 @@ from agents.sandbox.tools import (
 
 TOOLS = [bash_tool, ls_tool, glob_tool, grep_tool, read_file_tool, write_file_tool, str_replace_tool]
 
-agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware()])
+agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware(),MemoryMiddleware(agent_name="niaiho")])
 
 async def main():
     """主函数。"""
@@ -82,7 +83,7 @@ async def main():
         current_tool_calls = {}
 
         for chunk in agent.stream(
-            {"messages": [HumanMessage(content="你好，介绍一下你自己")]},
+            {"messages": [HumanMessage(content="你好，我有什么文件")]},
             config=config_with_plan_mode,
             stream_mode=["updates", "messages"],
             version='v2'
