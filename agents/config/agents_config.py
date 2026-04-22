@@ -7,10 +7,11 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
-from deerflow.config.paths import get_paths
+from agents.config.paths import get_paths
 
 logger = logging.getLogger(__name__)
 
+# 本项目不需要配置到系统提示词处
 SOUL_FILENAME = "SOUL.md"
 AGENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
 

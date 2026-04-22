@@ -80,7 +80,9 @@ class MemoryMiddleware(AgentMiddleware[MemoryMiddlewareState]):
             return None
 
         # Queue the filtered conversation for memory update
+        # 提取出用户纠正信号
         correction_detected = detect_correction(filtered_messages)
+        # 提取出用户正强化信号
         reinforcement_detected = not correction_detected and detect_reinforcement(filtered_messages)
         queue = get_memory_queue()
         queue.add(

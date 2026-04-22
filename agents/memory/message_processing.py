@@ -1,4 +1,4 @@
-"""Shared helpers for turning conversations into memory update inputs."""
+"""将对话转换为记忆更新输入的共享助手。"""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ _REINFORCEMENT_PATTERNS = (
 
 
 def extract_message_text(message: Any) -> str:
-    """Extract plain text from message content for filtering and signal detection."""
+    """从消息内容中提取纯文本，用于过滤和信号检测。"""
     content = getattr(message, "content", "")
     if isinstance(content, list):
         text_parts: list[str] = []
@@ -54,7 +54,7 @@ def extract_message_text(message: Any) -> str:
 
 
 def filter_messages_for_memory(messages: list[Any]) -> list[Any]:
-    """Keep only user inputs and final assistant responses for memory updates."""
+    """仅保留用户输入和最终的助手响应用于记忆更新。"""
     filtered = []
     skip_next_ai = False
     for msg in messages:
@@ -86,7 +86,7 @@ def filter_messages_for_memory(messages: list[Any]) -> list[Any]:
 
 
 def detect_correction(messages: list[Any]) -> bool:
-    """Detect explicit user corrections in recent conversation turns."""
+    """检测最近对话轮次中明确的用户纠正信号。"""
     recent_user_msgs = [msg for msg in messages[-6:] if getattr(msg, "type", None) == "human"]
 
     for msg in recent_user_msgs:
@@ -98,7 +98,7 @@ def detect_correction(messages: list[Any]) -> bool:
 
 
 def detect_reinforcement(messages: list[Any]) -> bool:
-    """Detect explicit positive reinforcement signals in recent conversation turns."""
+    """检测最近对话轮次中明确的正向强化信号。"""
     recent_user_msgs = [msg for msg in messages[-6:] if getattr(msg, "type", None) == "human"]
 
     for msg in recent_user_msgs:

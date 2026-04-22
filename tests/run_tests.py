@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage
 # 导入模型
 from langchain.chat_models import init_chat_model
 from litellm import Thread
+from agents.middleware.memory_middleware import MemoryMiddleware
 from langchain_litellm import ChatLiteLLM
 from agents.middleware.skills_middleware import SkillsMiddleware
 from agents.sandbox.middleware import SandboxMiddleware
@@ -64,7 +65,8 @@ async def main():
 
     try:
         print("🚀 测试开始...")
-        agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware(user_id="example-user")])
+        agent = create_agent(model, tools=TOOLS,middleware=[ThreadDataMiddleware(), SandboxMiddleware(),SkillsMiddleware(user_id="example-user")
+                                                            ,MemoryMiddleware(agent_name="example-agent")])
         from langchain_core.runnables import RunnableConfig
         config_with_plan_mode = RunnableConfig(
             configurable={
@@ -80,7 +82,7 @@ async def main():
         current_tool_calls = {}
 
         for chunk in agent.stream(
-            {"messages": [HumanMessage(content="你好，帮我使用 skill-creator 创建一个讲内容变成txt的skill 严格按照skill-creator规范 讲skill保存在mnt/skills目录下，你直接帮我自动完成就行")]},
+            {"messages": [HumanMessage(content="你好，介绍一下你自己")]},
             config=config_with_plan_mode,
             stream_mode=["updates", "messages"],
             version='v2'

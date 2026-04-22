@@ -9,9 +9,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from deerflow.config.agents_config import AGENT_NAME_PATTERN
-from deerflow.config.memory_config import get_memory_config
-from deerflow.config.paths import get_paths
+from config.agents_config import AGENT_NAME_PATTERN
+from config.paths import get_paths
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +80,12 @@ class FileMemoryStorage(MemoryStorage):
 
     def _get_memory_file_path(self, agent_name: str | None = None) -> Path:
         """Get the path to the memory file."""
+        # 每一个agent的memory
         if agent_name is not None:
             self._validate_agent_name(agent_name)
             return get_paths().agent_memory_file(agent_name)
-
-        config = get_memory_config()
-        if config.storage_path:
-            p = Path(config.storage_path)
-            return p if p.is_absolute() else get_paths().base_dir / p
+        
+        # 全局的memory
         return get_paths().memory_file
 
     def _load_memory_from_file(self, agent_name: str | None = None) -> dict[str, Any]:
@@ -169,7 +166,7 @@ _storage_lock = threading.Lock()
 
 
 def get_memory_storage() -> MemoryStorage:
-    """Get the configured memory storage instance."""
+    """Get the memory storage instance (file-based)."""
     global _storage_instance
     if _storage_instance is not None:
         return _storage_instance
@@ -177,30 +174,6 @@ def get_memory_storage() -> MemoryStorage:
     with _storage_lock:
         if _storage_instance is not None:
             return _storage_instance
+        _storage_instance = FileMemoryStorage()
+        return _storage_instance
 
-        config = get_memory_config()
-        storage_class_path = config.storage_class
-
-        try:
-            module_path, class_name = storage_class_path.rsplit(".", 1)
-            import importlib
-
-            module = importlib.import_module(module_path)
-            storage_class = getattr(module, class_name)
-
-            # Validate that the configured storage is a MemoryStorage implementation
-            if not isinstance(storage_class, type):
-                raise TypeError(f"Configured memory storage '{storage_class_path}' is not a class: {storage_class!r}")
-            if not issubclass(storage_class, MemoryStorage):
-                raise TypeError(f"Configured memory storage '{storage_class_path}' is not a subclass of MemoryStorage")
-
-            _storage_instance = storage_class()
-        except Exception as e:
-            logger.error(
-                "Failed to load memory storage %s, falling back to FileMemoryStorage: %s",
-                storage_class_path,
-                e,
-            )
-            _storage_instance = FileMemoryStorage()
-
-    return _storage_instance
